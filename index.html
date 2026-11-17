@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+
+<title>Edinburgh Allotments & Health | Group 6</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+*{box-sizing:border-box}body{margin:0;font:15px Arial,sans-serif;color:#232c3d;background:#f6f7fa}
+header{background:white;color:#232c3d;padding:22px 26px;position:relative;z-index:900;border-bottom:1px solid #e0e4eb}
+header h1{font-size:clamp(25px,3vw,37px);letter-spacing:-.6px;margin:0 0 5px}
+header p{margin:0;color:#637188;font-size:14px}
+
+#map{height:calc(100vh - 110px);min-height:430px}
+
+.panel{position:absolute;z-index:800;top:126px;background:white;max-height:calc(100vh - 147px);overflow:auto;border-radius:9px;box-shadow:0 3px 18px #0003;padding:15px}
+
+#about{left:15px;width:275px}#details{right:15px;width:340px;display:none}
+
+h2{font-size:18px;margin:0 0 10px}h3{font-size:16px;margin:0 0 8px}.muted{color:#63766e;font-size:13px}
+
+details{border-top:1px solid #e3e6ed;padding:11px 0}summary{font-weight:600;cursor:pointer}details p,details li{line-height:1.5;font-size:13px}details ul{padding-left:20px}a{color:#146f52}
+
+button{cursor:pointer;border:0;border-radius:5px;padding:7px 9px}#close{float:right;background:#eff2f7}
+
+.metric{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #edf0ed;gap:10px;font-size:13px}.metric strong{text-align:right}
+
+.gallery{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:10px}.gallery img{width:100%;height:100px;object-fit:cover;border-radius:5px;cursor:pointer}
+
+.note{background:#eff3fa;border-left:3px solid #526fa9;padding:9px;font-size:12px;line-height:1.5}#layers{position:absolute;z-index:800;bottom:26px;left:15px;background:white;padding:9px;border-radius:6px;box-shadow:0 2px 10px #0002;font-size:13px}
+
+.leaflet-popup-content{line-height:1.5}
+
+@media(max-width:760px){#about{width:210px;top:95px;max-height:37vh}#details{top:auto;bottom:12px;right:8px;left:8px;width:auto;max-height:45vh}#layers{bottom:15px}}
+
+</style></head><body>
+
+  <header><h1>Greenspaces, Health & Allotments</h1><p>Edinburgh | GIS & Earth Observation | Group 6</p></header>
+
+  <div id="map"></div>
+<aside id="about" class="panel"><h2>About the project</h2>
+<details open><summary>Problem statement</summary><p>How do the presence and condition of allotments relate to the Scottish Index of Multiple Deprivation (SIMD) Health Index across Edinburgh?</p></details>
+<details><summary>Background</summary><p>Urban allotments provide space for growing food, outdoor activity and social connection. This project examines whether allotment presence and environmental condition are associated with local health indicators, w>
+<details><summary>Methodology</summary><p>Compare 10 allotment areas with 10 selected comparison areas without allotments. Combine council allotment data, field observations and SIMD data-zone health measures. A 300 m buffer is proposed around each stud>
+<details><summary>References</summary><p>Sources include City of Edinburgh Council (2016, 2022), Scottish Government (2020), Groenewegen et al. (2006), Markevych et al. (2017), Soga et al. (2017) and the group data report (2026).</p><p>Full references a>
+<p class="muted">Click an allotment marker or boundary to explore its details. Zoom in to see the exact boundaries.</p>
+</aside>
+<aside id="details" class="panel"><button id="close" type="button">✕</button><h2 id="sitename"></h2>
+  <div id="sitebody"></div></aside>
+
+<div id="layers"><strong>Map view</strong><br><label><input type="radio" name="basemap" value="satellite" checked> Satellite</label> &nbsp; <label><input type="radio" name="basemap" value="street"> Street map</label><div class="muted" id="zoomhint" styl>
+
+<div id="intro"><header><h1>Introduction to the topic</h1></header></div>
+
+<script>
+// Allotment boundaries and information are embedded below (from the uploaded shapefile and CSV files).
+const allotments = {"type":"FeatureCollection","features":[{"type":"Feature","properties":{"name":"Dumbryden Allotments","source_name":"Dumbryden","neighbourhood":"South West NP","datazone":"S01008463","datazone_name":"Murrayburn and Wester Hailes North"}}]}
+
+const map =L.map('map',{zoomControl:false}).setView([55.95,-3.21],12);
+
+L.control.zoom({position:'bottomright'}).addTo(map);
+
+const street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution:'&copy; OpenStreetMap contributors', maxZoom:19});
+
+const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {attribution:'Imagery &copy; Esri and imagery providers',maxZoom:19});
+
+satellite.addTo(map);
+document.querySelectorAll('input[name=basemap]').forEach(input => input.addEventListener('change', e => {
+  map.removeLayer(street); map.removeLayer(satellite);
+  (e.target.value === 'satellite' ? satellite : street).addTo(map).bringToBack();
+}));
+
+const layer=L.geoJSON(allotments,{style:{color:'#ffcf65',weight:3,fillColor:'#f7a930',fillOpacity:.3},onEachFeature:(f,l)=>{
+ const p=f.properties;
+ l.bindPopup('<b>'+escapeHTML(p.name)+'</b><br>'+escapeHTML(p.neighbourhood)+'<br>Centre: '+p.lat+', '+p.lon+'<br><small>See site details on the right.</small>');
+ l.on('click',()=>showSite(p));
+ l.on('mouseover',()=>l.setStyle({weight:5,fillOpacity:.52}));l.on('mouseout',()=>layer.resetStyle(l));
+}}).addTo(map);
+
+const markers = L.layerGroup();
+allotments.features.forEach(f => {
+  const p=f.properties;
+  const marker=L.circleMarker([p.lat,p.lon], {radius:11,color:'#fff',weight:3,fillColor:'#ec7e35',fillOpacity:.98});
+  marker.bindTooltip(p.name, {direction:'top',offset:[0,-10]});
+  marker.bindPopup('<b>'+escapeHTML(p.name)+'</b><br>'+escapeHTML(p.neighbourhood)+'<br>Centre: '+p.lat+', '+p.lon);
+  marker.on('click',()=>showSite(p));
+  markers.addLayer(marker);
+});
+
+map.fitBounds(layer.getBounds().pad(.12));
+
+const OUTLINE_ZOOM=14;
+function updateSiteDisplay(){
+  if(map.getZoom()<OUTLINE_ZOOM){
+    if(map.hasLayer(layer))map.removeLayer(layer);
+    if(!map.hasLayer(markers))markers.addTo(map);
+    document.querySelector('#zoomhint').textContent='Zoom in to see allotment boundaries';
+  }else{
+    if(map.hasLayer(markers))map.removeLayer(markers);
+    if(!map.hasLayer(layer))layer.addTo(map);
+    document.querySelector('#zoomhint').textContent='Showing allotment boundaries';
+  }
+}
+map.on('zoomend',updateSiteDisplay);
+updateSiteDisplay();
+document.querySelector('#close').addEventListener('click',()=>document.querySelector('#details').style.display='none');
+function escapeHTML(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function line(label,value){return '<div class="metric"><span>'+escapeHTML(label)+'</span><strong>'+escapeHTML(value??'Not recorded')+'</strong></div>';}
+function section(name,html,open=false){return '<details '+(open?'open':'')+'><summary>'+name+'</summary>'+html+'</details>';}
+function showSite(p){
+ document.querySelector('#details').style.display='block';document.querySelector('#sitename').textContent=p.name;
+ let body=section('Allotment information',line('Neighbourhood',p.neighbourhood)+line('Site centre',p.lat+', '+p.lon)+line('Area',p.area_ha+' ha')+line('Plots',p.plots),true);
+ body+=section('Fieldwork observations','<p>'+escapeHTML(p.observations)+'</p><p><b>Access and surroundings:</b> '+escapeHTML(p.access)+'</p>',true);
+ body+=section('Field photographs',p.photos.length?'<div class="gallery">'+p.photos.map(x=>'<a href="'+encodeURI(x)+'" target="_blank"><img loading="lazy" src="'+encodeURI(x)+'" alt="Field photograph"></a>').join('')+'</div>':'<p class="muted">Photos no>
+ body+=section('SIMD health information',line('Data zone',p.datazone)+line('Data-zone area',p.datazone_name)+line('Health rank (Scotland)',p.health_rank.toLocaleString('en-GB'))+line('Prescribed medication',p.prescriptions+'%')+line('Emergency hospital >
+ body+=section('Earth observation findings','<p><b>300 m buffers:</b> planned / results pending.</p><p><b>NDVI:</b> pending.</p><p><b>Land surface temperature:</b> pending.</p><p><b>DEM / slope / aspect:</b> pending.</p><p><b>Hotspot analysis:</b> pendi>
+ document.querySelector('#sitebody').innerHTML=body;
+}
+</script></body></html>
